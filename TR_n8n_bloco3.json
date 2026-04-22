@@ -1,0 +1,125 @@
+{
+    "name": "TR_Bloco3_Secao5_Execucao_Entrega",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr-bloco3",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook",
+            "name": "Webhook_Bloco3",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                300
+            ],
+            "webhookId": "gerar-tr-bloco3"
+        },
+        {
+            "parameters": {
+                "jsCode": "const b = $input.first().json.body || $input.first().json || {};\nreturn [{ json: {\n  respostas_usuario: b.content || '',\n  etp: b.etp_content || '',\n  matriz_risco: b.matriz_riscos || '',\n  object_nature: b.object_nature || 'Aquisição de Bens',\n  process_id: b.process_id || 'N/A'\n}}];"
+            },
+            "id": "normalizar",
+            "name": "Normalizar_Dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas (Lei 14.133/2021).\\nRedija a Seção 5 – MODELO DE EXECUÇÃO DO OBJETO do TR conforme a minuta AGU.\\n\\n=== CONTEXTO BASE ===\\nNATUREZA DO OBJETO: ' + $json.object_nature + '\\n\\nETP (Estudo Técnico Preliminar) — BASE PRINCIPAL DO TR:\\n' + ($json.etp || 'Não fornecido.') + '\\n\\nMATRIZ DE RISCOS:\\n' + ($json.matriz_risco || 'Não fornecida.') + '\\n\\nRESPOSTAS DO USUÁRIO:\\n' + ($json.respostas_usuario || '') + '\\n\\n⚠️ O TR é continuação do ETP. Extraia local de entrega, prazos, forma de recebimento e garantia diretamente do ETP. Use a Matriz de Riscos para identificar cuidados especiais na execução.\\n\\n=== SEÇÃO 5 – MODELO DE EXECUÇÃO DO OBJETO ===\\n\\n5.1. O fornecimento do objeto deverá ser realizado conforme condições, quantidades e exigências estabelecidas neste Termo de Referência.\\n\\n5.2. Condições de entrega:\\n5.2.1. A entrega será realizada de forma [INTEGRAL / PARCELADA — extraia do ETP].\\n5.2.2. Os bens deverão ser entregues no seguinte endereço: [LOCAL — extraia do ETP ou respostas].\\n5.2.3. O prazo de entrega é de [PRAZO — extraia do ETP] dias corridos, contados da [assinatura do contrato / emissão da nota de empenho].\\n\\n5.3. Recebimento do objeto:\\n5.3.1. O recebimento provisório ocorrerá no ato da entrega, mediante conferência da quantidade e verificação da conformidade com as especificações técnicas.\\n5.3.2. O recebimento definitivo ocorrerá no prazo de [PRAZO, máximo 30 dias], após verificação da qualidade e conformidade.\\n5.3.3. O recebimento provisório ou definitivo não exclui a responsabilidade civil pela solidez e segurança do fornecimento.\\n\\n5.4. Prazo e condições de garantia do produto:\\n5.4.1. Os bens fornecidos deverão ter garantia mínima de [PRAZO — extraia do ETP] meses, contados do recebimento definitivo.\\n5.4.2. A assistência técnica durante a garantia será prestada na modalidade [on-site / balcão / substituição — conforme ETP], com atendimento em [PRAZO] dias úteis.\\n\\n=== INSTRUÇÕES FINAIS ===\\n1. Substitua [entre colchetes] com dados reais extraídos do ETP e respostas.\\n2. Items 5.1, 5.3.1, 5.3.3 são FIXOS.\\n3. Para opções com alternativas, escolha APENAS UMA.\\n4. Retorne SOMENTE o texto final da Seção 5 em Markdown. Sem explicações.' }}"
+            },
+            "id": "agente",
+            "name": "Agente_Bloco3_Execucao",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const outputRaw = $input.first().json?.output || '{}';\nlet texto = '';\n\ntry {\n  if (typeof outputRaw === 'object' && outputRaw !== null) {\n    texto = outputRaw.action_input?.text || outputRaw.output || JSON.stringify(outputRaw);\n  } else {\n    let clean = outputRaw.replace(/```markdown/g, '').replace(/```/g, '').trim();\n    try {\n      const parsed = JSON.parse(clean);\n      texto = parsed.action_input ? (parsed.action_input.text || parsed.action_input) : (parsed.output || clean);\n    } catch (e) {\n      texto = clean;\n    }\n  }\n} catch (e) { texto = outputRaw; }\n\nreturn [{ json: { sucesso: true, bloco: 3, texto_formatado: texto } }];"
+            },
+            "id": "consolida",
+            "name": "Consolida_Bloco3",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "responder",
+            "name": "Responder_Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                880,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook_Bloco3": {
+            "main": [
+                [
+                    {
+                        "node": "Normalizar_Dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalizar_Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Agente_Bloco3_Execucao",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_Bloco3_Execucao": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida_Bloco3",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida_Bloco3": {
+            "main": [
+                [
+                    {
+                        "node": "Responder_Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

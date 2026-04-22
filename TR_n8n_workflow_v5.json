@@ -1,0 +1,235 @@
+{
+    "name": "Gerador_TR_v5_Secoes_AGU",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook-node",
+            "name": "Webhook_Gerar_TR",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                300
+            ],
+            "webhookId": "gerar-tr"
+        },
+        {
+            "parameters": {
+                "jsCode": "const b = $input.first().json.body || $input.first().json || {};\nreturn [{\n  json: {\n    respostas_usuario: b.content || b.respostas_usuario || '',\n    etp: b.etp_content || b.etp || '',\n    pesquisa_precos: b.pesquisa_precos_texto || b.pesquisa_precos || 'Nenhuma pesquisa de preços fornecida.',\n    matriz_risco: b.matriz_riscos || b.matriz_risco || '',\n    process_id: b.process_id || 'N/A'\n  }\n}];"
+            },
+            "id": "normalizar-node",
+            "name": "Normalizar_Dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas federais (Lei 14.133/2021).\\nSua tarefa é preencher a SEÇÃO 1 do Termo de Referência seguindo a minuta padrão da AGU para AQUISIÇÕES.\\n\\n=== DADOS DISPONÍVEIS ===\\nRESPOSTAS DO USUÁRIO:\\n' + $json.respostas_usuario + '\\n\\nETP:\\n' + $json.etp + '\\n\\nPESQUISA DE PREÇOS:\\n' + $json.pesquisa_precos + '\\n\\n=== TEXTO BASE DA SEÇÃO 1 (preencha os campos marcados) ===\\n\\n1. CONDIÇÕES GERAIS DA CONTRATAÇÃO\\n\\n1.1. Aquisição de **[INSERIR OBJETO - preencha com o objeto real]**, [se houver instalação/montagem, descreva aqui, caso contrário remova este trecho], nos termos da tabela abaixo, conforme condições e exigências estabelecidas neste instrumento.\\n\\n| ITEM | ESPECIFICAÇÃO | CATMAT | UNIDADE DE MEDIDA | QUANTIDADE | VALOR UNITÁRIO | VALOR TOTAL |\\n|------|---------------|--------|-------------------|------------|----------------|-------------|\\n| 1 | [Preencha com especificação técnica detalhada] | [código] | UN | [qtd] | R$ [valor] | R$ [total] |\\n\\n[ESCOLHA APENAS UMA das opções abaixo para 1.2, excluindo a outra:]\\n\\nOPÇÃO A (bens comuns):\\n1.2. Os bens objeto desta contratação são caracterizados como comuns, conforme justificativa constante do Estudo Técnico Preliminar.\\n\\nOPÇÃO B (bens especiais):\\n1.2. Os bens objeto desta contratação são caracterizados como especiais, conforme justificativa constante do Estudo Técnico Preliminar.\\n\\n1.3. O objeto desta contratação não se enquadra como bem de luxo, conforme Decreto nº 10.818, de 27 de setembro de 2021.\\n\\n[ESCOLHA APENAS UMA das opções abaixo para 1.4, excluindo as outras:]\\n\\nOPÇÃO A (vigência simples):\\n1.4. O prazo de vigência da contratação é de [indicar o prazo] contados da assinatura do contrato, na forma do artigo 105 da Lei n° 14.133, de 2021.\\n\\nOPÇÃO B (vigência plurianual):\\n1.4. O prazo de vigência da contratação é de [indicar o prazo, limitado a 5 anos] contados da assinatura do contrato, prorrogável por até 10 anos, na forma dos artigos 106 e 107 da Lei n° 14.133, de 2021.\\n1.4.1. O fornecimento de bens é enquadrado como continuado tendo em vista que [justificativa do ETP].\\n\\nOPÇÃO C (emergência):\\n1.4. O prazo de vigência da contratação é de [indicar o prazo, limitado a um ano] contados da assinatura do contrato, improrrogável, na forma do art. 75, inciso VIII, da Lei n° 14.133/2021.\\n\\n1.5. O contrato ou outro instrumento hábil que o substitua oferece maior detalhamento das regras que serão aplicadas em relação à vigência da contratação.\\n\\n=== INSTRUÇÕES ===\\n- Substitua todos os campos [entre colchetes] com dados reais extraídos do ETP e das respostas do usuário.\\n- Para as OPÇÕES, escolha apenas UMA e remova as demais.\\n- Mantenha o texto fixo (1.3 e 1.5) sem alterações.\\n- Mantenha a numeração correta dos parágrafos.\\n- Retorne SOMENTE o texto final da Seção 1 em Markdown, sem explicações adicionais.' }}"
+            },
+            "id": "agente-secao1",
+            "name": "Agente_Secao1_CondicoesGerais",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas federais (Lei 14.133/2021).\\nSua tarefa é preencher a SEÇÃO 2 do Termo de Referência seguindo a minuta padrão da AGU para AQUISIÇÕES.\\n\\n=== DADOS DISPONÍVEIS ===\\nRESPOSTAS DO USUÁRIO:\\n' + $json.respostas_usuario + '\\n\\nETP:\\n' + $json.etp + '\\n\\n=== TEXTO BASE DA SEÇÃO 2 ===\\n\\n2. FUNDAMENTAÇÃO E DESCRIÇÃO DA NECESSIDADE DA CONTRATAÇÃO\\n\\n2.1. A Fundamentação da Contratação e de seus quantitativos encontra-se pormenorizada em tópico específico dos Estudos Técnicos Preliminares, apêndice deste Termo de Referência.\\n\\n[ESCOLHA APENAS UMA das opções abaixo para 2.2/2.3:]\\n\\nOPÇÃO A (se o usuário informou dados do PCA - ID, data, classe, identificador):\\n2.2. O objeto da contratação está previsto no Plano de Contratações Anual [ANO], conforme detalhamento a seguir:\\na) ID PCA no PNCP: [preencher];\\nb) Data de publicação no PNCP: [preencher];\\nc) Id do item no PCA: [preencher];\\nd) Classe/Grupo: [preencher];\\ne) Identificador da Futura Contratação: [preencher].\\n\\nOPÇÃO B (se o usuário NÃO informou dados do PCA detalhados):\\n2.2. O objeto da contratação está previsto no Plano de Contratações Anual [ANO], conforme consta das informações básicas desse Termo de Referência.\\n\\n=== INSTRUÇÕES ===\\n- O item 2.1 é FIXO. Mantenha-o exatamente como está.\\n- Para 2.2: se o usuário forneceu dados do PCA (ID, data, classe), use a Opção A preenchida. Caso contrário, use a Opção B simplificada.\\n- Substitua [ANO] pelo ano informado nas respostas ou no ETP.\\n- Retorne SOMENTE o texto final da Seção 2 em Markdown, sem explicações adicionais.' }}"
+            },
+            "id": "agente-secao2",
+            "name": "Agente_Secao2_Fundamentacao",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas federais (Lei 14.133/2021).\\nSua tarefa é preencher a SEÇÃO 3 do Termo de Referência seguindo a minuta padrão da AGU para AQUISIÇÕES.\\n\\n=== DADOS DISPONÍVEIS ===\\nETP:\\n' + $json.etp + '\\n\\n=== TEXTO BASE DA SEÇÃO 3 ===\\n\\n3. DESCRIÇÃO DA SOLUÇÃO COMO UM TODO CONSIDERADO O CICLO DE VIDA DO OBJETO E ESPECIFICAÇÃO DO PRODUTO\\n\\n3.1. A descrição da solução como um todo encontra-se pormenorizada em tópico específico dos Estudos Técnicos Preliminares, apêndice deste Termo de Referência.\\n\\n=== INSTRUÇÕES ===\\n- O item 3.1 é FIXO na redação da AGU. Mantenha-o exatamente como está — não altere o texto.\\n- Se o ETP contiver especificações técnicas detalhadas do produto (configurações, requisitos mínimos), adicione após o 3.1 um item 3.2 com as especificações técnicas mínimas do objeto, com o título: \"3.2. Especificações técnicas mínimas:\", seguido de lista com as especificações extraídas do ETP.\\n- Retorne SOMENTE o texto final da Seção 3 em Markdown, sem explicações adicionais.' }}"
+            },
+            "id": "agente-secao3",
+            "name": "Agente_Secao3_DescricaoSolucao",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "id": "merge1-node",
+            "name": "Merge_Secoes_1_e_2",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                660,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "id": "merge2-node",
+            "name": "Merge_Final",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                880,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Consolida as 3 seções geradas pelos agentes\nconst items = $input.all();\nconst secao1 = items[0]?.json?.output || '';\nconst secao2 = items[1]?.json?.output || '';\nconst secao3 = items[2]?.json?.output || '';\n\n// Extrai campos estruturados da Seção 1 para o docxtemplater\n// A IA deve ter preenchido os dados reais no texto\nconst processId = $('Normalizar_Dados').first().json.process_id || 'N/A';\n\n// Monta o texto completo de preview para exibir no frontend\nconst textoCompleto = [\n  secao1,\n  '',\n  '---',\n  '',\n  secao2,\n  '',\n  '---',\n  '',\n  secao3\n].join('\\n');\n\nreturn [{\n  json: {\n    sucesso: true,\n    secoes: {\n      secao1,\n      secao2,\n      secao3\n    },\n    frontend_preview: {\n      secao_requisitos: secao1,\n      secao_gestao: secao2,\n      secao_infracoes: secao3,\n      secao_entregas: ''\n    },\n    texto_completo: textoCompleto,\n    process_id: processId\n  }\n}];"
+            },
+            "id": "consolida-node",
+            "name": "Consolida_Secoes",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "responder-node",
+            "name": "Responder_Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1320,
+                350
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook_Gerar_TR": {
+            "main": [
+                [
+                    {
+                        "node": "Normalizar_Dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalizar_Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Agente_Secao1_CondicoesGerais",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente_Secao2_Fundamentacao",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente_Secao3_DescricaoSolucao",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_Secao1_CondicoesGerais": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Secoes_1_e_2",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_Secao2_Fundamentacao": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Secoes_1_e_2",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge_Secoes_1_e_2": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Final",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_Secao3_DescricaoSolucao": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Final",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge_Final": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida_Secoes",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida_Secoes": {
+            "main": [
+                [
+                    {
+                        "node": "Responder_Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

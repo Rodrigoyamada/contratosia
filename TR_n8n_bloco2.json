@@ -1,0 +1,125 @@
+{
+    "name": "TR_Bloco2_Secao4_Requisitos",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr-bloco2",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook",
+            "name": "Webhook_Bloco2",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                300
+            ],
+            "webhookId": "gerar-tr-bloco2"
+        },
+        {
+            "parameters": {
+                "jsCode": "const b = $input.first().json.body || $input.first().json || {};\nreturn [{ json: {\n  respostas_usuario: b.content || '',\n  etp: b.etp_content || '',\n  matriz_risco: b.matriz_riscos || '',\n  object_nature: b.object_nature || 'Aquisição de Bens',\n  process_id: b.process_id || 'N/A'\n}}];"
+            },
+            "id": "normalizar",
+            "name": "Normalizar_Dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas (Lei 14.133/2021).\\nRedija a Seção 4 – REQUISITOS DA CONTRATAÇÃO do TR seguindo rigorosamente a minuta padrão da AGU.\\n\\n=== CONTEXTO BASE ===\\nNATUREZA DO OBJETO: ' + $json.object_nature + '\\n\\nETP (Estudo Técnico Preliminar):\\n' + ($json.etp || 'Não fornecido.') + '\\n\\nRESPOSTAS DO USUÁRIO:\\n' + ($json.respostas_usuario || '') + '\\n\\n=== ESTRUTURA ALVO (MINUTA AGU) ===\\nO texto deve seguir exatamente este padrão, preenchendo apenas os dados variáveis:\\n\\n4. ESPECIFICAÇÕES TÉCNICAS E REQUISITOS DA CONTRATAÇÃO\\n4.1. As especificações técnicas do objeto são: [TRANSCREVA O ITEM 4 DO ETP - ESPECIFICAÇÕES TÉCNICAS E REQUISITOS].\\n\\n4.2. Sustentabilidade\\n4.2.1. Além dos critérios de sustentabilidade eventualmente inseridos na descrição do objeto, devem ser atendidos os seguintes requisitos: [EXTRAIA CRITÉRIOS DE SUSTENTABILIDADE DO ETP OU OBJETO].\\n\\n4.3. Indicação de marcas ou modelos\\n4.3.1. [ESCOLHA: \"Na presente contratação não será admitida a indicação de marcas.\" OU \"Será admitida a indicação da marca [MARCA], conforme justificativa do ETP.\"]\\n\\n4.4. Da exigência de amostra\\n4.4.1. [ESCOLHA: \"Não será exigida amostra prévia.\" OU \"Será exigida amostra dos seguintes itens: [DESCREVA].\"]\\n\\n4.5. Subcontratação\\n4.5.1. [ESCOLHA: \"Não será admitida a subcontratação do objeto contratual.\" OU \"É permitida a subcontratação parcial até o limite de [X]% do valor total.\"]\\n\\n4.6. Garantia do Objeto\\n4.6.1. O prazo de garantia é de [PRAZO - EX: 12 meses], conforme estabelecido no ETP.\\n\\n=== SUA TAREFA ===\\nRetorne SOMENTE o texto final da Seção 4 em Markdown. Preencha os campos variáveis com base no contexto fornecido. Não invente informações.' }}"
+            },
+            "id": "agente",
+            "name": "Agente_Bloco2_Requisitos",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const outputRaw = $input.first().json?.output || '{}';\nlet texto = '';\n\ntry {\n  if (typeof outputRaw === 'object' && outputRaw !== null) {\n    texto = outputRaw.action_input?.text || outputRaw.output || JSON.stringify(outputRaw);\n  } else {\n    let clean = outputRaw.replace(/```markdown/g, '').replace(/```/g, '').trim();\n    try {\n      const parsed = JSON.parse(clean);\n      texto = parsed.action_input ? (parsed.action_input.text || parsed.action_input) : (parsed.output || clean);\n    } catch (e) {\n      texto = clean;\n    }\n  }\n} catch (e) { texto = outputRaw; }\n\nreturn [{ json: { sucesso: true, bloco: 2, texto_formatado: texto } }];"
+            },
+            "id": "consolida",
+            "name": "Consolida_Bloco2",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "responder",
+            "name": "Responder_Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                880,
+                325
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook_Bloco2": {
+            "main": [
+                [
+                    {
+                        "node": "Normalizar_Dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalizar_Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Agente_Bloco2_Requisitos",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_Bloco2_Requisitos": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida_Bloco2",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida_Bloco2": {
+            "main": [
+                [
+                    {
+                        "node": "Responder_Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

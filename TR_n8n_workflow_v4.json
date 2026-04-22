@@ -1,0 +1,285 @@
+{
+    "name": "Gerador_TR_v4_AGU_2Camadas",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook-node",
+            "name": "Webhook_Gerar_TR",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                300
+            ],
+            "webhookId": "gerar-tr"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Normaliza os campos independente do nome de campo enviado pelo frontend\nconst b = $input.first().json.body || $input.first().json || {};\nreturn [{\n  json: {\n    respostas_usuario: b.content || b.respostas_usuario || '',\n    etp: b.etp_content || b.etp || '',\n    pesquisa_precos: b.pesquisa_precos_texto || b.pesquisa_precos || 'Nenhuma pesquisa de preços fornecida.',\n    matriz_risco: b.matriz_riscos || b.matriz_risco || '',\n    process_id: b.process_id || 'N/A'\n  }\n}];"
+            },
+            "id": "normalizar-node",
+            "name": "Normalizar_Dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é especialista em contratações públicas conforme Lei 14.133/2021.\\n\\nCom base NAS INFORMAÇÕES ABAIXO, organize os dados nos 3 blocos da minuta padrão AGU para AQUISIÇÕES.\\n\\n=== RESPOSTAS DO USUÁRIO ===\\n' + $json.respostas_usuario + '\\n\\n=== ETP (ESTUDO TÉCNICO PRELIMINAR) ===\\n' + $json.etp + '\\n\\n=== PESQUISA DE PREÇOS ===\\n' + $json.pesquisa_precos + '\\n\\n=== MATRIZ DE RISCO ===\\n' + $json.matriz_risco + '\\n\\nRetorne SOMENTE este JSON (sem texto antes ou depois):\\n{\\n  \"bloco1\": {\\n    \"numero_processo\": \"número do processo\",\\n    \"objeto_contratacao\": \"descrição completa\",\\n    \"atividades_incluidas\": \"instalação, configuração etc. ou vazio\",\\n    \"prazo_entrega\": \"XX dias\",\\n    \"prazo_vigencia\": \"XX meses\",\\n    \"ano_pca\": \"2025\",\\n    \"is_bens_comuns\": true,\\n    \"is_bens_especiais\": false,\\n    \"modalidade_licitacao\": \"Pregão Eletrônico\",\\n    \"fundamentacao_necessidade\": \"texto sobre a fundamentação\",\\n    \"itens\": [{\"numero_item\": 1, \"especificacao\": \"...\", \"catmat\": \"...\", \"unidade_medida\": \"UN\", \"quantidade\": 1, \"valor_unitario\": \"R$ 0,00\", \"valor_total\": \"R$ 0,00\"}]\\n  },\\n  \"bloco2\": {\\n    \"aceita_subcontratacao\": false,\\n    \"percentual_subcontratacao\": 0,\\n    \"exige_amostra\": false,\\n    \"exige_garantia_contratual\": false,\\n    \"percentual_garantia\": 5,\\n    \"requisitos_sustentabilidade\": \"lista dos critérios\",\\n    \"qualificacao_tecnica\": \"texto sobre atestados e qualificação exigida\",\\n    \"habilitacao_juridica\": \"documentos exigidos\",\\n    \"regularidade_fiscal\": \"certidões exigidas\"\\n  },\\n  \"bloco3\": {\\n    \"prazo_garantia\": \"36 meses\",\\n    \"tem_garantia_contratual\": false,\\n    \"modelo_gestao_fiscalizacao\": \"texto sobre gestor, fiscal, atribuições e recebimento\",\\n    \"infracoes_sancoes\": \"texto sobre penalidades conforme art. 155-163 Lei 14.133\"\\n  }\\n}' }}"
+            },
+            "id": "estruturador-node",
+            "name": "A1_Estruturador_Minuta_AGU",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extrai o JSON retornado pelo A1 e organiza os blocos\nfunction extractJSON(text) {\n  if (typeof text === 'object' && text !== null) return text;\n  if (typeof text !== 'string') return {};\n  try {\n    const md = text.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n    if (md) return JSON.parse(md[1]);\n    const raw = text.match(/\\{[\\s\\S]*\\}/);\n    if (raw) return JSON.parse(raw[0]);\n  } catch(e) {}\n  return {};\n}\n\nconst output = $input.first().json?.output || '';\nconst parsed = extractJSON(output);\n\n// Preserve the process_id from the upstream Normalizar step\nconst processId = $('Normalizar_Dados').first().json.process_id || 'N/A';\n\nreturn [{\n  json: {\n    bloco1: { ...( parsed.bloco1 || {} ), numero_processo: processId },\n    bloco2: parsed.bloco2 || {},\n    bloco3: parsed.bloco3 || {}\n  }\n}];"
+            },
+            "id": "separar-node",
+            "name": "Extrair_e_Separar_Blocos",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas federais (Lei 14.133/2021).\\n\\nRedija integralmente o BLOCO 1 do Termo de Referência conforme a minuta padrão da AGU para AQUISIÇÕES.\\nUse linguagem oficial, formal, técnica e impessoal.\\nAborde SOMENTE: Condições Gerais da Contratação, Fundamentação e Necessidade, Prazo de Vigência, Prazo de Entrega.\\n\\nDATOS ESTRUTURADOS DO BLOCO 1:\\n' + JSON.stringify($json.bloco1, null, 2) + '\\n\\nRetorne apenas o texto completo do Bloco 1, formatado em Markdown com headers (##).' }}"
+            },
+            "id": "redator1-node",
+            "name": "A2A_Redator_Bloco1",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                880,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas federais (Lei 14.133/2021).\\n\\nRedija integralmente o BLOCO 2 do Termo de Referência conforme a minuta padrão da AGU para AQUISIÇÕES.\\nUse linguagem oficial, formal, técnica e impessoal.\\nAborde SOMENTE: Requisitos da Contratação, Sustentabilidade, Exigência de Amostras, Subcontratação, Garantia, Habilitação (Jurídica, Fiscal, Trabalhista, Qualificação Técnica).\\n\\nDADOS ESTRUTURADOS DO BLOCO 2:\\n' + JSON.stringify($json.bloco2, null, 2) + '\\n\\nRetorne apenas o texto completo do Bloco 2, formatado em Markdown com headers (##).' }}"
+            },
+            "id": "redator2-node",
+            "name": "A2B_Redator_Bloco2",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                880,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas federais (Lei 14.133/2021).\\n\\nRedija integralmente o BLOCO 3 do Termo de Referência conforme a minuta padrão da AGU para AQUISIÇÕES.\\nUse linguagem oficial, formal, técnica e impessoal.\\nAborde SOMENTE: Modelo de Execução e Entrega, Modelo de Gestão e Fiscalização, Infrações e Sanções Administrativas.\\n\\nDADOS ESTRUTURADOS DO BLOCO 3:\\n' + JSON.stringify($json.bloco3, null, 2) + '\\n\\nRetorne apenas o texto completo do Bloco 3, formatado em Markdown com headers (##).' }}"
+            },
+            "id": "redator3-node",
+            "name": "A2C_Redator_Bloco3",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                880,
+                500
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "id": "merge1-node",
+            "name": "Merge_Blocos_1_e_2",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                1100,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "id": "merge2-node",
+            "name": "Merge_Final",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                1300,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Consolida os textos dos 3 blocos e monta o JSON final\nconst items = $input.all();\n\nconst texto1 = items[0]?.json?.output || '';\nconst texto2 = items[1]?.json?.output || '';\nconst texto3 = items[2]?.json?.output || '';\n\n// Pega os dados estruturados do bloco1 para montar o docxtemplater\nconst dadosBlocos = $('Extrair_e_Separar_Blocos').first().json;\nconst b1 = dadosBlocos.bloco1 || {};\nconst b2 = dadosBlocos.bloco2 || {};\nconst b3 = dadosBlocos.bloco3 || {};\n\n// Texto de preview (Markdown) para o usuário ler no sistema\nconst frontendPreview = [\n  '# TERMO DE REFERÊNCIA',\n  '',\n  texto1,\n  '',\n  '---',\n  '',\n  texto2,\n  '',\n  '---',\n  '',\n  texto3\n].join('\\n');\n\n// Objeto exato para o docxtemplater (tags do template_tagueado_v2.docx)\nconst docxData = {\n  numero_processo: b1.numero_processo || 'N/A',\n  objeto_contratacao: b1.objeto_contratacao || 'N/A',\n  atividades_incluidas: b1.atividades_incluidas || '',\n  prazo_entrega: b1.prazo_entrega || 'N/A',\n  prazo_vigencia: b1.prazo_vigencia || 'N/A',\n  ano_pca: b1.ano_pca || String(new Date().getFullYear()),\n  is_bens_comuns: b1.is_bens_comuns !== undefined ? b1.is_bens_comuns : true,\n  is_bens_especiais: b1.is_bens_especiais !== undefined ? b1.is_bens_especiais : false,\n  modalidade_licitacao: b1.modalidade_licitacao || 'Pregão Eletrônico',\n  itens: Array.isArray(b1.itens) ? b1.itens : [],\n  aceita_subcontratacao: b2.aceita_subcontratacao !== undefined ? b2.aceita_subcontratacao : false,\n  percentual_subcontratacao: b2.percentual_subcontratacao || 0,\n  exige_amostra: b2.exige_amostra !== undefined ? b2.exige_amostra : false,\n  exige_garantia_contratual: b2.exige_garantia_contratual !== undefined ? b2.exige_garantia_contratual : false,\n  percentual_garantia: b2.percentual_garantia || 5,\n  prazo_garantia: b3.prazo_garantia || '12 meses',\n  tem_garantia_contratual: b3.tem_garantia_contratual !== undefined ? b3.tem_garantia_contratual : false\n};\n\nreturn [{\n  json: {\n    sucesso: true,\n    frontend_preview: {\n      secao_requisitos: texto2,\n      secao_gestao: texto3,\n      secao_infracoes: '',\n      secao_entregas: texto1\n    },\n    docxtemplater: docxData\n  }\n}];"
+            },
+            "id": "consolida-node",
+            "name": "Consolida_TR_Final",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1500,
+                350
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "responder-node",
+            "name": "Responder_Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1720,
+                350
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook_Gerar_TR": {
+            "main": [
+                [
+                    {
+                        "node": "Normalizar_Dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalizar_Dados": {
+            "main": [
+                [
+                    {
+                        "node": "A1_Estruturador_Minuta_AGU",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "A1_Estruturador_Minuta_AGU": {
+            "main": [
+                [
+                    {
+                        "node": "Extrair_e_Separar_Blocos",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Extrair_e_Separar_Blocos": {
+            "main": [
+                [
+                    {
+                        "node": "A2A_Redator_Bloco1",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "A2B_Redator_Bloco2",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "A2C_Redator_Bloco3",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "A2A_Redator_Bloco1": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Blocos_1_e_2",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "A2B_Redator_Bloco2": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Blocos_1_e_2",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge_Blocos_1_e_2": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Final",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "A2C_Redator_Bloco3": {
+            "main": [
+                [
+                    {
+                        "node": "Merge_Final",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge_Final": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida_TR_Final",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida_TR_Final": {
+            "main": [
+                [
+                    {
+                        "node": "Responder_Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

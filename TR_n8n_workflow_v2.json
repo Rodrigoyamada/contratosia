@@ -1,0 +1,211 @@
+{
+    "name": "Gerar TR v2",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook-node",
+            "name": "Webhook Recebe Dados",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                200
+            ],
+            "webhookId": "gerar-tr"
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extrai os dados do body (multipart/form-data ou JSON)\nconst body = $input.first().json.body || {};\n\nconst content = body.content || '';\nconst etpContent = body.etp_content || 'Nenhum ETP fornecido.';\nconst matrizRiscos = body.matriz_riscos || 'Nenhuma Matriz de Risco fornecida.';\nconst processId = body.process_id || 'N/A';\nconst hasFile = body.has_file === 'true' || body.has_file === true;\n\nreturn [{\n  json: {\n    content,\n    etp_content: etpContent,\n    matriz_riscos: matrizRiscos,\n    process_id: processId,\n    has_file: hasFile\n  }\n}];"
+            },
+            "id": "set-node",
+            "name": "Processa Payload",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Tenta extrair texto do arquivo PDF se existir\nconst binaryData = $input.first().binary || {};\nconst baseData = $('Processa Payload').first().json;\n\n// Verifica se veio algum arquivo\nconst fileKeys = Object.keys(binaryData);\nlet fileText = 'Nenhuma pesquisa de precos fornecida.';\n\nif (fileKeys.length > 0) {\n  // Se tem arquivo, o texto extraído virá pelo nó extractFromFile\n  // Por ora, registramos que tem arquivo\n  fileText = '[Arquivo recebido - ver nó de extração]';\n}\n\nreturn [{\n  json: {\n    ...baseData,\n    pesquisa_precos_texto: fileText\n  }\n}];"
+            },
+            "id": "merge-file-node",
+            "name": "Prepara Contexto",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                440,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é o Agente 1: Analista de Especificações e Custos para contratações públicas conforme a Lei 14.133/2021.\\n\\nRESPOSTAS DO USUÁRIO (Detalhes da Contratação):\\n' + $json.content + '\\n\\nCONTEÚDO DO ETP:\\n' + $json.etp_content + '\\n\\nPESQUISA DE PREÇOS:\\n' + $json.pesquisa_precos_texto + '\\n\\nRetorne SOMENTE e EXATAMENTE este JSON, nada mais:\\n{\\n  \"prazo_entrega\": \"prazo em dias uteis\",\\n  \"vigencia\": \"vigencia em meses\",\\n  \"objeto_contratacao\": \"descricao resumida do objeto\",\\n  \"itens\": [{\\n    \"numero_item\": 1,\\n    \"especificacao\": \"descricao tecnica\",\\n    \"catmat\": \"codigo\",\\n    \"unidade_medida\": \"UN\",\\n    \"quantidade\": 1,\\n    \"valor_unitario\": \"R$ 0,00\",\\n    \"valor_total\": \"R$ 0,00\"\\n  }]\\n}' }}"
+            },
+            "id": "agent1-node",
+            "name": "Agente 1: Especificacoes e Custos",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                660,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é o Agente 2: Analista Juridico de Requisitos Licitatorios, especialista em Lei 14.133/2021.\\n\\nRESPOSTAS DO USUÁRIO:\\n' + $json.content + '\\n\\nETP DO PROCESSO:\\n' + $json.etp_content + '\\n\\nRetorne SOMENTE e EXATAMENTE este JSON, nada mais:\\n{\\n  \"is_bens_comuns\": true,\\n  \"is_bens_especiais\": false,\\n  \"aceita_subcontratacao\": false,\\n  \"percentual_subcontratacao\": 0,\\n  \"exige_amostra\": false,\\n  \"exige_garantia_contratual\": false,\\n  \"percentual_garantia\": 0,\\n  \"modalidade_licitacao\": \"Pregão Eletronico\",\\n  \"secao_requisitos_texto_preview\": \"# Requisitos de Habilitacao\\\\n\\\\nTexto completo aqui...\"\\n}' }}"
+            },
+            "id": "agent2-node",
+            "name": "Agente 2: Requisitos Licitatorios",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                660,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é o Agente 3: Analista Gestor de Riscos e Fiscalizacao, especialista em Lei 14.133/2021.\\n\\nMATRIZ DE RISCOS DO PROCESSO:\\n' + $json.matriz_riscos + '\\n\\nETP DO PROCESSO:\\n' + $json.etp_content + '\\n\\nRetorne SOMENTE e EXATAMENTE este JSON, nada mais:\\n{\\n  \"prazo_garantia\": \"12 meses\",\\n  \"tem_garantia_contratual\": false,\\n  \"secao_gestao_texto_preview\": \"# Modelo de Gestao\\\\n\\\\nTexto completo aqui...\",\\n  \"secao_infracoes_texto_preview\": \"# Infracoes e Sancoes\\\\n\\\\nTexto completo aqui...\"\\n}' }}"
+            },
+            "id": "agent3-node",
+            "name": "Agente 3: Riscos e Fiscalizacao",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                660,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "function extractJSON(text) {\n  if (!text || typeof text !== 'string') {\n    if (typeof text === 'object' && text !== null) return text;\n    return {};\n  }\n  try {\n    const mdMatch = text.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n    if (mdMatch) return JSON.parse(mdMatch[1]);\n    const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) return JSON.parse(jsonMatch[0]);\n  } catch (e) {}\n  return { output_falho: text };\n}\n\nconst baseData = $('Prepara Contexto').first().json;\n\nconst out1 = extractJSON($('Agente 1: Especificacoes e Custos').first()?.json?.output);\nconst out2 = extractJSON($('Agente 2: Requisitos Licitatorios').first()?.json?.output);\nconst out3 = extractJSON($('Agente 3: Riscos e Fiscalizacao').first()?.json?.output);\n\nconst previewRequisitos = out2.secao_requisitos_texto_preview || out2.output_falho || '';\nconst previewGestao = out3.secao_gestao_texto_preview || out3.output_falho || '';\nconst previewInfracoes = out3.secao_infracoes_texto_preview || '';\n\nconst docxData = {\n  numero_processo: baseData.process_id || 'N/A',\n  objeto_contratacao: out1.objeto_contratacao || 'N/A',\n  prazo_entrega: out1.prazo_entrega || 'N/A',\n  vigencia: out1.vigencia || 'N/A',\n  is_bens_comuns: out2.is_bens_comuns !== undefined ? out2.is_bens_comuns : true,\n  is_bens_especiais: out2.is_bens_especiais !== undefined ? out2.is_bens_especiais : false,\n  aceita_subcontratacao: out2.aceita_subcontratacao !== undefined ? out2.aceita_subcontratacao : false,\n  exige_garantia_contratual: out2.exige_garantia_contratual !== undefined ? out2.exige_garantia_contratual : false,\n  exige_amostra: out2.exige_amostra !== undefined ? out2.exige_amostra : false,\n  modalidade_licitacao: out2.modalidade_licitacao || 'Pregao Eletronico',\n  prazo_garantia: out3.prazo_garantia || '12 meses',\n  itens: Array.isArray(out1.itens) ? out1.itens : []\n};\n\nreturn [{\n  json: {\n    sucesso: true,\n    frontend_preview: {\n      secao_requisitos: previewRequisitos,\n      secao_gestao: previewGestao,\n      secao_infracoes: previewInfracoes\n    },\n    docxtemplater: docxData\n  }\n}];"
+            },
+            "id": "consolidate-node",
+            "name": "Consolida Outputs",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                880,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "respond-node",
+            "name": "Responde ao Frontend",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1100,
+                200
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Recebe Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Processa Payload",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Processa Payload": {
+            "main": [
+                [
+                    {
+                        "node": "Prepara Contexto",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Prepara Contexto": {
+            "main": [
+                [
+                    {
+                        "node": "Agente 1: Especificacoes e Custos",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente 2: Requisitos Licitatorios",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente 3: Riscos e Fiscalizacao",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 1: Especificacoes e Custos": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida Outputs",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 2: Requisitos Licitatorios": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida Outputs",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Agente 3: Riscos e Fiscalizacao": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida Outputs",
+                        "type": "main",
+                        "index": 2
+                    }
+                ]
+            ]
+        },
+        "Consolida Outputs": {
+            "main": [
+                [
+                    {
+                        "node": "Responde ao Frontend",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

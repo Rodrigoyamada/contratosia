@@ -1,0 +1,197 @@
+{
+    "name": "Gerador de Termo de Referência (TR)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "1",
+            "name": "Webhook Recebe Dados do Supabase/TR",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ],
+            "webhookId": "9e3c2b1a-4d5e-6f7g-8h9i-0j1k2l3m4n5o"
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.2
+                }
+            },
+            "id": "2",
+            "name": "Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                250,
+                450
+            ]
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=O objetivo é atuar como Analista de Especificações e Custos em licitações públicas.\n\nVocê receberá o Estudo Técnico Preliminar (ETP) e a Tabela de Preços (Contexto).\nSua tarefa é extrair e estruturar rigorasamente a 'Tabela de Itens'.\nO retorno deve ser ESTRITAMENTE o JSON abaixo:\n\n{\n  \"itens\": [\n    {\n      \"numero_item\": 1,\n      \"especificacao\": \"...\",\n      \"catmat\": \"...\",\n      \"unidade_medida\": \"...\",\n      \"quantidade\": 0,\n      \"valor_unitario\": \"...\",\n      \"valor_total\": \"...\"\n    }\n  ],\n  \"prazo_entrega\": \"...\"\n}",
+                "hasOutputParser": true
+            },
+            "id": "3",
+            "name": "Agente 1: Especificações e Custos",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.4,
+            "position": [
+                500,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.2
+                }
+            },
+            "id": "4",
+            "name": "Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                500,
+                450
+            ]
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=Atue como um Especialista Jurídico em Licitações (Lei 14.133).\nLeia as respostas do usuário e o ETP.\n\nRetorne EXATAMENTE este JSON:\n{\n  \"is_bens_comuns\": true/false,\n  \"is_bens_especiais\": true/false,\n  \"aceita_subcontratacao\": true/false,\n  \"exige_amostra\": true/false,\n  \"secao_requisitos_texto_preview\": \"# Requisitos de Habilitação\\n...\"\n}",
+                "hasOutputParser": true
+            },
+            "id": "5",
+            "name": "Agente 2: Requisitos Licitatórios",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.4,
+            "position": [
+                750,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "model": "gpt-4o",
+                "options": {
+                    "temperature": 0.2
+                }
+            },
+            "id": "6",
+            "name": "Model",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+            "typeVersion": 1,
+            "position": [
+                750,
+                450
+            ]
+        },
+        {
+            "parameters": {
+                "promptType": "define",
+                "text": "=Atue como um Gestor de Riscos e Fiscalização de Contratos (Lei 14.133).\nAnalise a MATRIZ DE RISCOS recebida.\n\nRetorne ESTRITAMENTE este JSON:\n{\n  \"prazo_garantia\": \"...\",\n  \"tem_garantia_contratual\": true/false,\n  \"secao_gestao_texto_preview\": \"# Modelo de Gestão\\n...\",\n  \"secao_infracoes_texto_preview\": \"# Infrações e Sanções\\n...\"\n}",
+                "hasOutputParser": true
+            },
+            "id": "7",
+            "name": "Agente 3: Riscos e Fiscalização",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.4,
+            "position": [
+                1000,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const inputs = $input.all();\nconst payload = items[0].json.body;\n\n// Na prática do n8n (encadeado ou Set), aqui combinaríamos os outputs.\n// Como é um mock/planejamento, consolidamos os dados.\n\nreturn [\n  {\n    json: {\n      sucesso: true,\n      docxtemplater: {\n        numero_processo: payload.numero_processo || \"N/A\",\n        objeto_contratacao: payload.objeto_contratacao || \"N/A\",\n        is_bens_comuns: $('Agente 2: Requisitos Licitatórios').item.json.is_bens_comuns || true,\n        itens: $('Agente 1: Especificações e Custos').item.json.itens || []\n      },\n      frontend_preview: {\n        secao_gestao: $('Agente 3: Riscos e Fiscalização').item.json.secao_gestao_texto_preview || \"\",\n        secao_requisitos: $('Agente 2: Requisitos Licitatórios').item.json.secao_requisitos_texto_preview || \"\"\n      }\n    }\n  }\n];"
+            },
+            "id": "8",
+            "name": "Consolida Outputs (JavaScript)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1250,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Recebe Dados do Supabase/TR": {
+            "main": [
+                [
+                    {
+                        "node": "Agente 1: Especificações e Custos",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Model": {
+            "ai_languageModel": [
+                [
+                    {
+                        "node": "Agente 1: Especificações e Custos",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente 2: Requisitos Licitatórios",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente 3: Riscos e Fiscalização",
+                        "type": "ai_languageModel",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 1: Especificações e Custos": {
+            "main": [
+                [
+                    {
+                        "node": "Agente 2: Requisitos Licitatórios",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 2: Requisitos Licitatórios": {
+            "main": [
+                [
+                    {
+                        "node": "Agente 3: Riscos e Fiscalização",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 3: Riscos e Fiscalização": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida Outputs (JavaScript)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {},
+    "versionId": "f2a1b3c4-d5e6-7f8a-9b0c-1d2e3f4a5b6c"
+}

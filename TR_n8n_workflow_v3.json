@@ -1,0 +1,235 @@
+{
+    "name": "Gerar TR v3 (template AGU tagueado)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook-node",
+            "name": "Webhook Recebe Dados",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                200
+            ],
+            "webhookId": "gerar-tr"
+        },
+        {
+            "parameters": {
+                "jsCode": "const body = $input.first().json.body || {};\nreturn [{\n  json: {\n    content: body.content || '',\n    etp_content: body.etp_content || 'Nenhum ETP fornecido.',\n    matriz_riscos: body.matriz_riscos || 'Nenhuma Matriz de Risco fornecida.',\n    process_id: body.process_id || 'N/A',\n    has_file: body.has_file === 'true' || body.has_file === true\n  }\n}];"
+            },
+            "id": "set-node",
+            "name": "Processa Payload",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é especialista em licitações públicas (Lei 14.133/2021). Com base nas informações abaixo, retorne SOMENTE este JSON, SEM NENHUM TEXTO ADICIONAL antes ou depois:\\n\\nINFORMAÇÕES DA CONTRATAÇÃO:\\n' + $json.content + '\\n\\nETP DO PROCESSO:\\n' + $json.etp_content + '\\n\\nRetorne EXATAMENTE este JSON:\\n{\\n  \"objeto_contratacao\": \"descrição completa do objeto conforme o ETP\",\\n  \"atividades_incluidas\": \"instalação, configuração e demais atividades incluídas, ou deixe vazio se não houver\",\\n  \"prazo_entrega\": \"XX dias úteis\",\\n  \"prazo_vigencia\": \"XX meses\",\\n  \"ano_pca\": \"2025\",\\n  \"itens\": [\\n    {\\n      \"numero_item\": 1,\\n      \"especificacao\": \"especificação técnica detalhada do item\",\\n      \"catmat\": \"código CATMAT ou CATSER\",\\n      \"unidade_medida\": \"UN\",\\n      \"quantidade\": 1,\\n      \"valor_unitario\": \"R$ 0,00\",\\n      \"valor_total\": \"R$ 0,00\"\\n    }\\n  ]\\n}' }}"
+            },
+            "id": "agent1-node",
+            "name": "Agente 1: Objeto e Itens",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                660,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é especialista jurídico em licitações públicas (Lei 14.133/2021). Com base nas informações abaixo, retorne SOMENTE este JSON, SEM NENHUM TEXTO ADICIONAL antes ou depois:\\n\\nINFORMAÇÕES DA CONTRATAÇÃO:\\n' + $json.content + '\\n\\nETP DO PROCESSO:\\n' + $json.etp_content + '\\n\\nRetorne EXATAMENTE este JSON (use true/false para booleanos):\\n{\\n  \"is_bens_comuns\": true,\\n  \"is_bens_especiais\": false,\\n  \"aceita_subcontratacao\": false,\\n  \"percentual_subcontratacao\": 0,\\n  \"exige_amostra\": false,\\n  \"exige_garantia_contratual\": false,\\n  \"percentual_garantia\": 5,\\n  \"modalidade_licitacao\": \"Pregão Eletrônico\",\\n  \"secao_requisitos_texto\": \"Texto completo dos requisitos de habilitação jurídica, fiscal, trabalhista, qualificação técnica e econômico-financeira conforme Art. 62 a 70 da Lei 14.133/2021\"\\n}' }}"
+            },
+            "id": "agent2-node",
+            "name": "Agente 2: Requisitos Juridicos",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                660,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é gestor de contratos especialista em Lei 14.133/2021. Com base nas informações abaixo, retorne SOMENTE este JSON, SEM NENHUM TEXTO ADICIONAL antes ou depois:\\n\\nMATRIZ DE RISCOS:\\n' + $json.matriz_riscos + '\\n\\nETP DO PROCESSO:\\n' + $json.etp_content + '\\n\\nRetorne EXATAMENTE este JSON:\\n{\\n  \"prazo_garantia\": \"36 meses\",\\n  \"tem_garantia_contratual\": false,\\n  \"secao_gestao_texto\": \"Texto completo do Modelo de Gestão e Fiscalização: gestor, fiscal, atribuições, procedimentos de recebimento provisório e definitivo, conforme art. 117-121 da Lei 14.133/2021\",\\n  \"secao_infracoes_texto\": \"Texto completo da seção de Infrações e Sanções Administrativas conforme art. 155-163 da Lei 14.133/2021, incluindo advertência, multa moratória, multa compensatória e impedimento de licitar\"\\n}' }}"
+            },
+            "id": "agent3-node",
+            "name": "Agente 3: Gestao e Sancoes",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                660,
+                400
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "id": "merge1-node",
+            "name": "Merge Agentes 1 e 2",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                880,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "mode": "append"
+            },
+            "id": "merge2-node",
+            "name": "Merge Final",
+            "type": "n8n-nodes-base.merge",
+            "typeVersion": 3,
+            "position": [
+                1100,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "function extractJSON(text) {\n  if (!text || typeof text !== 'string') {\n    if (typeof text === 'object' && text !== null) return text;\n    return {};\n  }\n  try {\n    const mdMatch = text.match(/```json\\s*([\\s\\S]*?)\\s*```/);\n    if (mdMatch) return JSON.parse(mdMatch[1]);\n    const jsonMatch = text.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) return JSON.parse(jsonMatch[0]);\n  } catch (e) {}\n  return { output_falho: text };\n}\n\n// With Merge (Append), items are in order: Agent1, Agent2, Agent3\nconst items = $input.all();\nconst out1 = extractJSON(items[0]?.json?.output);\nconst out2 = extractJSON(items[1]?.json?.output);\nconst out3 = extractJSON(items[2]?.json?.output);\n\nconst processId = $('Processa Payload').first().json.process_id || 'N/A';\n\n// Build preview text for UI\nconst previewRequisitos = out2.secao_requisitos_texto || out2.output_falho || '';\nconst previewGestao = out3.secao_gestao_texto || out3.output_falho || '';\nconst previewInfracoes = out3.secao_infracoes_texto || '';\n\n// Build the exact docxtemplater JSON matching the tagged template\nconst docxData = {\n  // Agente 1\n  numero_processo: processId,\n  objeto_contratacao: out1.objeto_contratacao || 'N/A',\n  atividades_incluidas: out1.atividades_incluidas || '',\n  prazo_entrega: out1.prazo_entrega || 'N/A',\n  prazo_vigencia: out1.prazo_vigencia || 'N/A',\n  ano_pca: out1.ano_pca || new Date().getFullYear().toString(),\n  itens: Array.isArray(out1.itens) ? out1.itens : [],\n\n  // Agente 2\n  is_bens_comuns: out2.is_bens_comuns !== undefined ? out2.is_bens_comuns : true,\n  is_bens_especiais: out2.is_bens_especiais !== undefined ? out2.is_bens_especiais : false,\n  aceita_subcontratacao: out2.aceita_subcontratacao !== undefined ? out2.aceita_subcontratacao : false,\n  percentual_subcontratacao: out2.percentual_subcontratacao || 0,\n  exige_amostra: out2.exige_amostra !== undefined ? out2.exige_amostra : false,\n  exige_garantia_contratual: out2.exige_garantia_contratual !== undefined ? out2.exige_garantia_contratual : false,\n  percentual_garantia: out2.percentual_garantia || 5,\n  modalidade_licitacao: out2.modalidade_licitacao || 'Pregão Eletrônico',\n\n  // Agente 3\n  prazo_garantia: out3.prazo_garantia || '12 meses',\n  tem_garantia_contratual: out3.tem_garantia_contratual !== undefined ? out3.tem_garantia_contratual : false\n};\n\nreturn [{\n  json: {\n    sucesso: true,\n    frontend_preview: {\n      secao_requisitos: previewRequisitos,\n      secao_gestao: previewGestao,\n      secao_infracoes: previewInfracoes\n    },\n    docxtemplater: docxData\n  }\n}];"
+            },
+            "id": "consolidate-node",
+            "name": "Consolida Outputs",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1320,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "respond-node",
+            "name": "Responde ao Frontend",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1540,
+                200
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook Recebe Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Processa Payload",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Processa Payload": {
+            "main": [
+                [
+                    {
+                        "node": "Agente 1: Objeto e Itens",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente 2: Requisitos Juridicos",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Agente 3: Gestao e Sancoes",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 1: Objeto e Itens": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Agentes 1 e 2",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 2: Requisitos Juridicos": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Agentes 1 e 2",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge Agentes 1 e 2": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Final",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente 3: Gestao e Sancoes": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Final",
+                        "type": "main",
+                        "index": 1
+                    }
+                ]
+            ]
+        },
+        "Merge Final": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida Outputs",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida Outputs": {
+            "main": [
+                [
+                    {
+                        "node": "Responde ao Frontend",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

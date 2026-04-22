@@ -1,0 +1,175 @@
+{
+    "name": "TR_Bloco1_Secoes_1_2_3",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr-bloco1",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook",
+            "name": "Webhook_Bloco1",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                300
+            ],
+            "webhookId": "gerar-tr-bloco1"
+        },
+        {
+            "parameters": {
+                "jsCode": "const b = $input.first().json.body || $input.first().json || {};\n// Truncar ETP para evitar estouro de tokens e rate limits (Anthropic 30k tokens/min)\nconst etpTruncado = (b.etp_content || '').substring(0, 15000);\nreturn [{ json: {\n  respostas_usuario: b.content || '',\n  etp: etpTruncado,\n  pesquisa_precos: b.pesquisa_precos_texto || '',\n  matriz_risco: b.matriz_riscos || '',\n  object_nature: b.object_nature || 'Aquisição de Bens',\n  process_id: b.process_id || 'N/A'\n}}];"
+            },
+            "id": "normalizar",
+            "name": "Normalizar_Dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas (Lei 14.133/2021).\\nSua tarefa é extrair dados estruturados da pesquisa de preços para preencher a tabela do TR.\\n\\n=== CONTEXTO BASE ===\\nNATUREZA DO OBJETO: ' + $json.object_nature + '\\n\\nETP (Estudo Técnico Preliminar) — BASE PRINCIPAL:\\n' + ($json.etp || 'Não fornecido.') + '\\n\\nMATRIZ DE RISCOS:\\n' + ($json.matriz_risco || 'Não fornecida.') + '\\n\\nRESPOSTAS DO USUÁRIO:\\n' + ($json.respostas_usuario || '') + '\\n\\nTEXTO DA PESQUISA DE PREÇOS:\\n' + ($json.pesquisa_precos || 'Nenhuma pesquisa de preços fornecida.') + '\\n\\n=== SUA TAREFA ===\\nAnalise os documentos acima e extraia os dados para a tabela de itens do TR.\\nRetorne SOMENTE um JSON válido, sem texto antes ou depois:\\n{\\n  \"objeto\": \"descrição completa do objeto\",\\n  \"itens\": [{\"item\": 1, \"especificacao\": \"\", \"catmat\": \"\", \"unidade\": \"UN\", \"quantidade\": 0, \"valor_unitario\": \"R$ 0,00\", \"valor_total\": \"R$ 0,00\"}],\\n  \"prazo_vigencia\": \"\",\\n  \"prazo_entrega\": \"\",\\n  \"tipo_vigencia\": \"simples\",\\n  \"bens_tipo\": \"comuns\",\\n  \"tem_pesquisa\": true\\n}\\n\\nSe não houver pesquisa de preços, use tem_pesquisa: false e extraia dados do ETP.' }}"
+            },
+            "id": "agente1a",
+            "name": "Agente_1A_Extrator_Precos",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const raw = $input.first().json?.output || '{}';\nlet dados = {};\ntry {\n  const clean = raw.replace(/```json?\\n?/g, '').replace(/```/g, '').trim();\n  dados = JSON.parse(clean);\n} catch(e) {\n  dados = { objeto: 'Não identificado', itens: [], tem_pesquisa: false };\n}\nreturn [{\n  json: {\n    dados_precos: JSON.stringify(dados, null, 2),\n    respostas_usuario: $('Normalizar_Dados').first().json.respostas_usuario,\n    etp: $('Normalizar_Dados').first().json.etp,\n    matriz_risco: $('Normalizar_Dados').first().json.matriz_risco,\n    object_nature: $('Normalizar_Dados').first().json.object_nature,\n    process_id: $('Normalizar_Dados').first().json.process_id\n  }\n}];"
+            },
+            "id": "parser",
+            "name": "Parser_Dados_Precos",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é um assistente técnico especializado em licitações e contratações públicas (Lei 14.133/2021).\\nSua tarefa é extrair os dados do ETP para preencher as seções 1, 2 e 3 do Termo de Referência seguindo a minuta padrão da AGU.\\n\\n=== ESTRUTURA ALVO (MINUTA AGU) ===\\nO texto deve seguir exatamente este padrão, preenchendo apenas os dados variáveis:\\n\\n1. DO OBJETO\\n1.1. O objeto da contratação é a [DESCRIÇÃO DO OBJETO - ex: Aquisição de 06 computadores...], conforme especificações e quantidades estabelecidas neste Termo de Referência.\\n\\n2. FUNDAMENTAÇÃO DA CONTRATAÇÃO\\n2.1. A fundamentação da contratação e de seus quantitativos encontra-se detalhada no Estudo Técnico Preliminar (ETP) nº [Nº ETP], que constitui anexo deste Termo de Referência, nos termos do art. 18, § 1º, da Lei nº 14.133, de 2021.\\n2.2. A justificativa para a contratação é: [TRANSCREVA O ITEM 2.1 DO ETP - JUSTIFICATIVA].\\n\\n3. DESCRIÇÃO DA SOLUÇÃO COMO UM TODO\\n3.1. A solução como um todo compreende: [TRANSCREVA O ITEM 3.1 DO ETP - DESCRIÇÃO DA SOLUÇÃO].\\n\\n=== CONTEXTO ===\\nETP (Truncado para 15k chars):\\n' + $json.etp + '\\n\\n=== SUA TAREFA ===\\nRetorne UM OBJETO JSON com os campos abaixo. No campo \"objeto_contratacao\", retorne APENAS a descrição curta (ex: \"aquisição de 06 computadores...\"), sem frases adicionais.\\n{\\n  \"numero_processo\": \"...\",\\n  \"objeto_contratacao\": \"...\",\\n  \"justificativa_etp\": \"...\",\\n  \"descricao_solucao_etp\": \"...\"\\n}' }}"
+            },
+            "id": "agente1b",
+            "name": "Agente_1B_Redator_Secoes",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                880,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const outputRaw = $input.first().json?.output || '{}';\nlet variables = {};\n\ntry {\n  if (typeof outputRaw === 'object' && outputRaw !== null) {\n    variables = outputRaw.action_input || outputRaw;\n  } else {\n    let cleanJson = outputRaw.replace(/```json/g, '').replace(/```/g, '').trim();\n    try {\n      variables = JSON.parse(cleanJson);\n    } catch (e) {\n      const match = cleanJson.match(/\\{.*\\}/s);\n      if (match) {\n        try { variables = JSON.parse(match[0]); } catch (e2) { }\n      }\n    }\n    if (variables.action === 'Final Answer' && variables.action_input) {\n      variables = variables.action_input;\n    }\n  }\n} catch (e) { }\n\n// Manter os itens da pesquisa\nlet itens = [];\ntry {\n  const dpRaw = $('Parser_Dados_Precos').first().json.dados_precos;\n  const dp = typeof dpRaw === 'string' ? JSON.parse(dpRaw) : dpRaw;\n  itens = dp.itens || [];\n} catch(e) { }\n\n// Gerar tabela markdown de itens formatada\nlet tabela_itens = '\\n| Item |                 Descrição                  |  CATMAT  | Unid | Qtd. | Val. Unit. | Val. Total |\\n|------|--------------------------------------------|----------|------|------|------------|------------|\\n';\nif (itens.length > 0) {\n  itens.forEach(i => {\n    const desc = (i.especificacao || '').padEnd(42, ' ').substring(0, 42);\n    const catmat = (i.catmat || '').padEnd(8, ' ');\n    const unid = (i.unidade || '').padEnd(4, ' ');\n    const qtd = String(i.quantidade || 0).padEnd(4, ' ');\n    const vUnit = (i.valor_unitario || '').padEnd(10, ' ');\n    const vTot = (i.valor_total || '').padEnd(10, ' ');\n    tabela_itens += `| ${String(i.item).padEnd(4, ' ')} | ${desc} | ${catmat} | ${unid} | ${qtd} | ${vUnit} | ${vTot} |\\n`;\n  });\n} else {\n  tabela_itens += '| -    | -                                          | -        | -    | -    | -          | -          |\\n';\n}\n\n// Gerar o texto formatado único para exibição na tela seguindo AGU\nconst texto_formatado = `1. DO OBJETO\\n1.1. O objeto da contratação é a ${variables.objeto_contratacao || '...'}, conforme especificações e quantidades estabelecidas neste Termo de Referência.\\n\\n1.2. A tabela abaixo resume os itens que compõem o objeto:\\n${tabela_itens}\\n2. FUNDAMENTAÇÃO DA CONTRATAÇÃO\\n2.1. A fundamentação da contratação e de seus quantitativos encontra-se detalhada no Estudo Técnico Preliminar (ETP) nº ${variables.numero_processo || '...'}, que constitui anexo deste Termo de Referência, nos termos do art. 18, § 1º, da Lei nº 14.133, de 2021.\\n2.2. A justificativa para a contratação é:\\n${variables.justificativa_etp || '...'}\\n\\n3. DESCRIÇÃO DA SOLUÇÃO COMO UM TODO\\n3.1. A solução como um todo compreende:\\n${variables.descricao_solucao_etp || '...'}`;\n\nreturn [{ json: { sucesso: true, bloco: 1, texto_formatado, variables: { ...variables, itens } } }];"
+            },
+            "id": "consolida",
+            "name": "Consolida_Bloco1",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1100,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "responder",
+            "name": "Responder_Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1300,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook_Bloco1": {
+            "main": [
+                [
+                    {
+                        "node": "Normalizar_Dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalizar_Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Agente_1A_Extrator_Precos",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_1A_Extrator_Precos": {
+            "main": [
+                [
+                    {
+                        "node": "Parser_Dados_Precos",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parser_Dados_Precos": {
+            "main": [
+                [
+                    {
+                        "node": "Agente_1B_Redator_Secoes",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_1B_Redator_Secoes": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida_Bloco1",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida_Bloco1": {
+            "main": [
+                [
+                    {
+                        "node": "Responder_Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}

@@ -1,0 +1,125 @@
+{
+    "name": "TR_Bloco5_Secoes_7_8_Pagamento_Habilitacao",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "gerar-tr-bloco5",
+                "responseMode": "responseNode"
+            },
+            "id": "webhook",
+            "name": "Webhook_Bloco5",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                0,
+                300
+            ],
+            "webhookId": "gerar-tr-bloco5"
+        },
+        {
+            "parameters": {
+                "jsCode": "const b = $input.first().json.body || $input.first().json || {};\nreturn [{ json: {\n  respostas_usuario: b.content || '',\n  etp: b.etp_content || '',\n  matriz_risco: b.matriz_riscos || '',\n  object_nature: b.object_nature || 'Aquisição de Bens',\n  process_id: b.process_id || 'N/A'\n}}];"
+            },
+            "id": "normalizar",
+            "name": "Normalizar_Dados",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "agent": "conversationalAgent",
+                "promptType": "define",
+                "text": "={{ 'Você é redator técnico especialista em contratações públicas (Lei 14.133/2021).\\nRedija as Seções 7 e 8 do Termo de Referência conforme a minuta AGU.\\n\\n=== CONTEXTO BASE ===\\nNATUREZA DO OBJETO: ' + $json.object_nature + '\\n\\nETP (Estudo Técnico Preliminar) — BASE PRINCIPAL DO TR:\\n' + ($json.etp || 'Não fornecido.') + '\\n\\nMATRIZ DE RISCOS:\\n' + ($json.matriz_risco || 'Não fornecida.') + '\\n\\nRESPOSTAS DO USUÁRIO:\\n' + ($json.respostas_usuario || '') + '\\n\\n⚠️ Use o ETP para determinar a modalidade de licitação, critério de julgamento e qualificação técnica exigida. Adapte à natureza do objeto.\\n\\n=== SEÇÃO 7 – CRITÉRIOS DE MEDIÇÃO E PAGAMENTO ===\\n\\n7.1. O pagamento será realizado no prazo máximo de 30 dias, contados da apresentação da Nota Fiscal/Fatura pelo contratado, após o recebimento definitivo dos bens.\\n\\n7.2. O pagamento será efetuado mediante a apresentação dos seguintes documentos:\\na) Nota Fiscal/Fatura devidamente atestada pelo fiscal do contrato;\\nb) Certidão Negativa de Débitos relativos a Tributos Federais e à Dívida Ativa da União;\\nc) Certidão Negativa de Débitos Estaduais;\\nd) Certidão Negativa de Débitos Municipais;\\ne) Certidão Negativa de Débitos Trabalhistas (CNDT);\\nf) Certidão de Regularidade do FGTS (CRF).\\n\\n7.3. Havendo erro na apresentação da Nota Fiscal/Fatura ou dos documentos pertinentes, o pagamento ficará sobrestado até que a contratada providencie as medidas saneadoras.\\n\\n7.4. Será retida, na fonte, a alíquota do Imposto de Renda, conforme legislação tributária vigente.\\n\\n=== SEÇÃO 8 – FORMA E CRITÉRIOS DE SELEÇÃO DO FORNECEDOR ===\\n\\n8.1. O fornecedor será selecionado por meio de procedimento de [MODALIDADE — conforme ETP: Pregão Eletrônico / Concorrência / Dispensa / Inexigibilidade], com critério de julgamento pelo [menor preço / maior desconto / técnica e preço — conforme ETP].\\n\\n8.2. Habilitação Jurídica\\n8.2.1. Documentos conforme art. 66 da Lei 14.133/2021:\\na) Registro comercial, no caso de empresa individual;\\nb) Ato constitutivo, estatuto ou contrato social em vigor, devidamente registrado;\\nc) Documentos de eleição dos atuais administradores.\\n\\n8.3. Regularidade Fiscal, Social e Trabalhista\\n8.3.1. São exigidas as seguintes certidões:\\na) CNPJ; b) Regularidade Federal e Dívida Ativa; c) Regularidade Estadual; d) Regularidade Municipal; e) FGTS; f) CNDT.\\n\\n8.4. Qualificação Técnica\\n8.4.1. [Comprovação de aptidão para fornecimento de bens compatíveis com o objeto — extraia do ETP os requisitos técnicos necessários].\\n8.4.2. [SE APLICÁVEL: certificações exigidas — INMETRO, ANATEL, ANVISA, etc. — extraia do ETP].\\n\\n8.5. Qualificação Econômico-Financeira\\n8.5.1. Certidão negativa de falência ou recuperação judicial expedida pelo distribuidor da sede da pessoa jurídica.\\n\\n=== INSTRUÇÕES FINAIS ===\\n1. Em 7.1: ajuste o prazo se o usuário informou diferente de 30 dias.\\n2. Em 8.1: preencha modalidade e critério conforme ETP e respostas.\\n3. Em 8.4: informe requisitos técnicos específicos extraídos do ETP.\\n4. Items 7.2 a 7.4, 8.2, 8.3 e 8.5 são FIXOS.\\n5. Retorne SOMENTE o texto final das Seções 7 e 8 em Markdown. Sem explicações.' }}"
+            },
+            "id": "agente",
+            "name": "Agente_Bloco5_Pagamento_Habilitacao",
+            "type": "@n8n/n8n-nodes-langchain.agent",
+            "typeVersion": 1.6,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const outputRaw = $input.first().json?.output || '{}';\nlet texto = '';\n\ntry {\n  if (typeof outputRaw === 'object' && outputRaw !== null) {\n    texto = outputRaw.action_input?.text || outputRaw.output || JSON.stringify(outputRaw);\n  } else {\n    let clean = outputRaw.replace(/```markdown/g, '').replace(/```/g, '').trim();\n    try {\n      const parsed = JSON.parse(clean);\n      texto = parsed.action_input ? (parsed.action_input.text || parsed.action_input) : (parsed.output || clean);\n    } catch (e) {\n      texto = clean;\n    }\n  }\n} catch (e) { texto = outputRaw; }\n\nreturn [{ json: { sucesso: true, bloco: 5, texto_formatado: texto } }];"
+            },
+            "id": "consolida",
+            "name": "Consolida_Bloco5",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($json) }}"
+            },
+            "id": "responder",
+            "name": "Responder_Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                880,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook_Bloco5": {
+            "main": [
+                [
+                    {
+                        "node": "Normalizar_Dados",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Normalizar_Dados": {
+            "main": [
+                [
+                    {
+                        "node": "Agente_Bloco5_Pagamento_Habilitacao",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Agente_Bloco5_Pagamento_Habilitacao": {
+            "main": [
+                [
+                    {
+                        "node": "Consolida_Bloco5",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Consolida_Bloco5": {
+            "main": [
+                [
+                    {
+                        "node": "Responder_Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}
