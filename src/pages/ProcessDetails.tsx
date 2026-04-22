@@ -24,9 +24,21 @@ export default function ProcessDetails() {
 
     const { documents, loading: docsLoading, createDocument, updateDocument, deleteDocument } = useDocuments(id || '');
 
-    // Back-to-front deletion: only the last doc in the chain can be deleted
+    // Back-to-front deletion: the last doc can always be deleted.
+    // Additionally, a blank/draft doc (no generated content) can also be deleted
+    // so it doesn't block deletion of preceding documents.
     const DOC_ORDER = ['DFD', 'ETP', 'Matriz de Risco', 'TR'] as const;
-    const isLastDoc = (doc: Document): boolean => {
+
+    const isDocBlank = (doc: Document): boolean => {
+        if (doc.status === 'completed') return false;
+        const hasContent = doc.generated_text && doc.generated_text.trim().length > 0;
+        return !hasContent;
+    };
+
+    const canDelete = (doc: Document): boolean => {
+        // Always allow deleting a blank/draft document with no content
+        if (isDocBlank(doc)) return true;
+        // Otherwise only allow deleting the last document in the chain
         const lastType = [...DOC_ORDER].reverse().find(t => documents.some(d => d.type === t));
         return doc.type === lastType;
     };
@@ -279,10 +291,10 @@ export default function ProcessDetails() {
                                             <span className="text-sm font-medium text-gray-900 dark:text-gray-100 flex-1">{doc.type === 'TR' ? 'TR' : doc.title}</span>
                                             {/* Delete icon */}
                                             <button
-                                                onClick={e => { e.stopPropagation(); if (isLastDoc(doc)) setConfirmDeleteId(doc.id); }}
-                                                disabled={!isLastDoc(doc)}
-                                                title={isLastDoc(doc) ? `Apagar ${doc.title}` : 'Apague os documentos posteriores primeiro'}
-                                                className={`ml-auto p-0.5 rounded transition-colors ${isLastDoc(doc)
+                                                onClick={e => { e.stopPropagation(); if (canDelete(doc)) setConfirmDeleteId(doc.id); }}
+                                                disabled={!canDelete(doc)}
+                                                title={canDelete(doc) ? `Apagar ${doc.title}` : 'Apague os documentos posteriores primeiro'}
+                                                className={`ml-auto p-0.5 rounded transition-colors ${canDelete(doc)
                                                     ? 'text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 cursor-pointer'
                                                     : 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
                                                     }`}

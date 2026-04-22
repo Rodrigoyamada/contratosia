@@ -13,9 +13,6 @@ import { supabase } from '../lib/supabaseClient';
 import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { Eye, Edit3 } from 'lucide-react';
 
 interface TREditorProps {
     document: Document;
@@ -160,7 +157,6 @@ export function TREditor({ document, onSave }: TREditorProps) {
 
     // Expanded block
     const [expanded, setExpanded] = useState<number | null>(1);
-    const [previewModes, setPreviewModes] = useState<Record<number, boolean>>({});
 
     // Loading states
     const [generating, setGenerating] = useState<number | null>(null);
