@@ -24,24 +24,10 @@ export default function ProcessDetails() {
 
     const { documents, loading: docsLoading, createDocument, updateDocument, deleteDocument } = useDocuments(id || '');
 
-    // Back-to-front deletion: the last doc can always be deleted.
-    // Additionally, a blank/draft doc (no generated content) can also be deleted
-    // so it doesn't block deletion of preceding documents.
     const DOC_ORDER = ['DFD', 'ETP', 'Matriz de Risco', 'TR'] as const;
 
-    const isDocBlank = (doc: Document): boolean => {
-        if (doc.status === 'completed') return false;
-        const hasContent = doc.generated_text && doc.generated_text.trim().length > 0;
-        return !hasContent;
-    };
-
-    const canDelete = (doc: Document): boolean => {
-        // Always allow deleting a blank/draft document with no content
-        if (isDocBlank(doc)) return true;
-        // Otherwise only allow deleting the last document in the chain
-        const lastType = [...DOC_ORDER].reverse().find(t => documents.some(d => d.type === t));
-        return doc.type === lastType;
-    };
+    // Any document can be deleted — confirmation dialog is the safeguard
+    const canDelete = (_doc: Document): boolean => true;
 
     const handleDeleteDoc = async (doc: Document) => {
         setConfirmDeleteId(null);
